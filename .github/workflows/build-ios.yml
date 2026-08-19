@@ -29,8 +29,12 @@ jobs:
       - name: Install JS Dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Install Ruby Dependencies
+        run: bundle install
+
       - name: Install Pods
-        run: npx pod-install
+        working-directory: ios
+        run: bundle exec pod install --repo-update
 
       - name: Build iOS App
         run: |
