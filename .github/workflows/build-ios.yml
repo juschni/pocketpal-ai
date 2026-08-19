@@ -8,12 +8,18 @@ on:
 jobs:
   build-ios:
     runs-on: macos-15
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Force Xcode 16.1
         run: sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
+
+      - name: Verify Xcode
+        run: |
+          xcode-select -p
+          xcodebuild -version
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -23,22 +29,39 @@ jobs:
       - name: Install JS Dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Install Ruby Dependencies
+        run: bundle install
+
       - name: Install Pods
-        run: npx pod-install
+        working-directory: ios
+        run: bundle exec pod install --repo-update
 
       - name: Build iOS App
         run: |
+          set -o pipefail
           xcodebuild -workspace ios/PocketPal.xcworkspace \
                      -scheme PocketPal \
                      -sdk iphonesimulator \
+                     -destination 'generic/platform=iOS Simulator' \
                      -configuration Release \
                      -derivedDataPath build \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGN_IDENTITY=""
+                     CODE_SIGN_IDENTITY="" \
+                     clean build 2>&1 | tee xcodebuild.log
 
-      - name: Zip & Upload Artifact
+      - name: Upload build diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: YOSI-Local-AI-xcodebuild-log
+          path: xcodebuild.log
+          if-no-files-found: warn
+
+      - name: Upload app artifact
+        if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
           name: YOSI-Local-AI-iOS
           path: build/Build/Products/Release-iphonesimulator/*.app
+          if-no-files-found: error
