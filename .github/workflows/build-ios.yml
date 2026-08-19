@@ -1,64 +1,51 @@
-name: Build YOSI Local AI
+name: YOSI Local AI
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build-ios:
     runs-on: macos-14
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Setup Node (with yarn cache)
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.21.0
-          cache: 'yarn'
 
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: ios/Pods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
-
-      - name: Install JS deps
-        run: yarn install --frozen-lockfile
+      - name: Install JS Dependencies
+        run: yarn install
 
       - name: Install CocoaPods
-        working-directory: ios
-        run: pod install --repo-update
-
-      - name: Build iOS App (simulator)
         run: |
-          set -o pipefail
+          cd ios
+          pod install --repo-update
+
+      - name: Build iOS App
+        run: |
           xcodebuild -workspace ios/PocketPal.xcworkspace \
                      -scheme PocketPal \
                      -sdk iphonesimulator \
                      -configuration Release \
                      -derivedDataPath build \
-                     CODE_SIGNING_ALLOWED=NO \
-                     CODE_SIGNING_REQUIRED=NO \
                      CODE_SIGN_IDENTITY="" \
-                     clean build | xcpretty || (cat build/Logs/*.xcactivitylog || true; exit 1)
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO
 
-      - name: Package app artifact
+      - name: Package Artifact
         run: |
           mkdir -p artifacts
           APP_PATH=$(find build/Build/Products -name "*.app" | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "No .app found in build output"
-            ls -la build/Build/Products || true
-            exit 1
-          fi
           zip -r artifacts/YOSI-Local-AI-Simulator.zip "$APP_PATH"
 
-      - name: Upload artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: YOSI-Local-AI-iOS
